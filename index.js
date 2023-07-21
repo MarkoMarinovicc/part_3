@@ -49,47 +49,55 @@ let phonebook = [
   },
 ];
 
-app.get("/api/persons", (request, response) => {
-  Person.find({}).then((person) => {
-    response.json(person);
-  });
+app.get("/api/persons", (request, response, next) => {
+  Person.find({})
+    .then((person) => {
+      response.json(person);
+    })
+    .catch((error) => next(error));
 });
-app.get("/info", async (request, response) => {
+app.get("/info", async (request, response, next) => {
   const date = new Date().toString();
-  const phonebookLenght = await Person.countDocuments();
+  const phonebookLenght = await Person.countDocuments().catch((error) =>
+    next(error)
+  );
   response.send(
-    `<h1>Phonebook hase info for ${phonebookLenght}</h1></br><p>${date}</p>`
+    `<h1>Phonebook has info for ${phonebookLenght}</h1></br><p>${date}</p>`
   );
 });
-app.get("/api/persons/:id", async (request, response) => {
-  const person = await Person.findById(request.params.id);
+app.get("/api/persons/:id", async (request, response, next) => {
   const phonebookLenght = await Person.countDocuments();
-  if (phonebookLenght > 0) {
-    response.json(person);
-  } else {
-    response.status(404).end();
-  }
+  await Person.findById(request.params.id)
+    .then((person) => {
+      if (phonebookLenght > 0) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch((error) => next(error));
 });
-app.delete("/api/persons/:id", async(request, response) => {
- const id=request.params.id
-  const person = await Person.findByIdAndDelete(id);
+app.delete("/api/persons/:id", async (request, response, next) => {
+  const id = request.params.id;
+  const person = await Person.findByIdAndDelete(id).catch((error) =>
+    next(error)
+  );
 
   response.json(person);
 });
-app.post("/api/persons", async(request, response) => {
+app.post("/api/persons", async (request, response, next) => {
   //const body = request.body;
-  const { name, number } = request.body
+  const { name, number } = request.body;
   if (!name && !number) {
-    return response.status(400).json({ error: 'content missing' })
+    return response.status(400).json({ error: "content missing" });
   }
-  
-  const person=await Person.insertMany({
+
+  const person = await Person.create({
     name,
-    number
-  })
+    number,
+  }).catch((error) => next(error));
 
-  return response.json(person)
-
+  return response.json(person);
 
   // if (!name && !number) {
   //   return response.status(400).json({
@@ -110,16 +118,39 @@ app.post("/api/persons", async(request, response) => {
   // phonebook = phonebook.concat(person);
   // response.json(person);
 });
-app.put("/api/persons/", async(request, response) => {
+app.put("/api/persons/", async (request, response, next) => {
   const { name, number } = request.body;
-  const person=await Person.findOneAndUpdate({name},{
-    name,
-    number
-  },{
-    new:true
-  })
+  const person = await Person.findOneAndUpdate(
+    { name },
+    {
+      name,
+      number,
+    },
+    {
+      new: true,
+    }
+  ).catch((error) => next(error));
   response.json(person);
 });
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+  }
+
+  next(error)
+}
+
+app.use(errorHandler);
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
+
+app.use(unknownEndpoint);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
