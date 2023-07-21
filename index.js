@@ -1,7 +1,9 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const morgan = require("morgan");
 const cors = require("cors");
+const Person = require("./models/persons.js");
 
 app.use(cors());
 app.use(express.json());
@@ -48,63 +50,74 @@ let phonebook = [
 ];
 
 app.get("/api/persons", (request, response) => {
-  response.json(phonebook);
+  Person.find({}).then((person) => {
+    response.json(person);
+  });
 });
-app.get("/info", (request, response) => {
+app.get("/info", async (request, response) => {
   const date = new Date().toString();
-  const phonebookLenght = phonebook.length;
+  const phonebookLenght = await Person.countDocuments();
   response.send(
-    `<h1>Phonebooke hase info for ${phonebookLenght}</h1></br><p>${date}</p>`
+    `<h1>Phonebook hase info for ${phonebookLenght}</h1></br><p>${date}</p>`
   );
 });
-app.get("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  const phonebooks = phonebook.find((phonebook) => phonebook.id === id);
-  if (phonebooks) {
-    response.json(phonebooks);
+app.get("/api/persons/:id", async (request, response) => {
+  const person = await Person.findById(request.params.id);
+  const phonebookLenght = await Person.countDocuments();
+  if (phonebookLenght > 0) {
+    response.json(person);
   } else {
     response.status(404).end();
   }
 });
-app.delete("/api/phonebook/:id", (request, response) => {
-  const id = Number(request.params.id);
-  phonebook = phonebook.find((phonebook) => phonebook.id !== id);
-  response.status(204).end();
-});
-app.post("/api/persons", (request, response) => {
-  //const body = request.body;
-  const id = phonebook.length > 0 ? Math.floor(Math.random() * 100) : 0;
-  const { name, number } = request.body;
-  if (!name && !number) {
-    return response.status(400).json({
-      error: "content missing",
-    });
-  }
-  const validation = phonebook.find((x) => x.name === name);
-  if (validation) {
-    return response.status(400).json({
-      error: "you have that name already",
-    });
-  }
-  const person = {
-    name,
-    number,
-  };
-  person.id = id;
-  phonebook = phonebook.concat(person);
+app.delete("/api/persons/:id", async(request, response) => {
+ const id=request.params.id
+  const person = await Person.findByIdAndDelete(id);
+
   response.json(person);
 });
-app.put("/api/persons/", (request, response) => {
-  const nameBody = request.body.name;
-  const id = phonebook.length;
-  const index = phonebook.findIndex((item) => item.name === nameBody);
-  const { name, number } = request.body;
-  const person = {
+app.post("/api/persons", async(request, response) => {
+  //const body = request.body;
+  const { name, number } = request.body
+  if (!name && !number) {
+    return response.status(400).json({ error: 'content missing' })
+  }
+  
+  const person=await Person.insertMany({
     name,
-    number,
-  };
-  person.id = id;
-  phonebook[index] = person;
+    number
+  })
+
+  return response.json(person)
+
+
+  // if (!name && !number) {
+  //   return response.status(400).json({
+  //     error: "content missing",
+  //   });
+  // }
+  // const validation = phonebook.find((x) => x.name === name);
+  // if (validation) {
+  //   return response.status(400).json({
+  //     error: "you have that name already",
+  //   });
+  // }
+  // const person = {
+  //   name,
+  //   number,
+  // };
+  // person.id = id;
+  // phonebook = phonebook.concat(person);
+  // response.json(person);
+});
+app.put("/api/persons/", async(request, response) => {
+  const { name, number } = request.body;
+  const person=await Person.findOneAndUpdate({name},{
+    name,
+    number
+  },{
+    new:true
+  })
   response.json(person);
 });
 const PORT = process.env.PORT || 3001;
